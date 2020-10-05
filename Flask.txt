@@ -1,0 +1,117 @@
+from flask import Flask, jsonify
+import pandas as pd
+import numpy as np
+import sqlalchemy
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, func
+import datetime as dt
+
+####################
+#DB Setup
+
+engine = create_engine("sqlite:///hawaii.sqlite")
+
+####################
+#Setup
+
+#Session Link
+sessions = Session(engine)
+# DB
+Base = automap_base()
+# Tables
+Base.prepare(engine, reflect=True)
+# Reference
+Measurement = Base.classes.measurement
+Station = Base.classes.station
+
+
+####################
+#Flask Setup
+
+app = Flask(__name__)
+
+####################
+#Routes
+
+@app.route("/")
+def welcome():
+    """List api routes."""
+    """List api routes."""
+    return (
+        f"Routes:<br/>"
+        f"/api/v1.0/stations<br/>"
+        f"/api/v1.0/precip<br/>"
+        f"/api/v1.0/tobs<br/>"
+        f"/api/v1.0/<start><br/>"
+        f"/api/v1.0/<start>/<end>"
+    )
+
+###################
+# Precip Info
+
+@app.route("/api/v1.0/precipitation")
+def precipitation():
+    maxdate = dt.date(2017, 8 ,23)
+    year_info = maxDate - dt.timedelta(days=365)
+    past_temp = (session.query(Measurement.date, Measurement.prcp)
+                .filter(Measurement.date <= maxDate)
+                .filter(Measurement.date >= yr_info)
+                .order_by(Measurement.date).all())    
+    precip = {date: prcp for date, prcp in past_temp}   
+    return jsonify(precip)
+
+###################
+# Station Info
+
+@app.route('/api/v1.0/stations')
+def stations():
+    stations = session.query(Station.station).all()
+    return jsonify(stations)
+
+##################
+# TOBS Info
+
+@app.route('/api/v1.0/tobs') 
+def tobs():  
+    mxdate = dt.date(2017, 8 ,23)
+    year_info = maxDate - dt.timedelta(days=365)
+    lastyear = (session.query(Measurement.tobs)
+                .filter(Measurement.station == 'USC00519281')
+                .filter(Measurement.date <= maxDate)
+                .filter(Measurement.date >= year_info)
+                .order_by(Measurement.tobs).all())
+    return jsonify(lastyear)
+
+#################
+# Start
+
+@app.route('/api/v1.0/<start>') 
+def start(start=None):
+
+    #start = Measurement.date <= '2010-01-01'
+    #end = Measurement.date >= '2017-08-23'
+
+    tobs_only = (session.query(Measurement.tobs).filter(Measurement.date.between(start, '2017-08-23')).all()) 
+    tobs_df = pd.DataFrame(tobs_only)
+    tmax = tobs_df["tobs"].max()
+    tmin = tobs_df["tobs"].min()
+    tavg = tobs_df["tobs"].mean()
+    return jsonify(tmax, tmin, tavg)
+
+#################
+# Start/End
+
+
+@app.route('/api/v1.0/<start>/<end>') 
+def startend(start=None, end=None):
+    tobs_only = (session.query(Measurement.tobs).filter(Measurement.date.between(start, end)).all()) 
+    tobs_df = pd.DataFrame(tobs_only)
+    tmax = tobs_df["tobs"].max()
+    tmin = tobs_df["tobs"].min()
+    tavg = tobs_df["tobs"].mean()
+    return jsonify(tavg, tmax, tmin)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
